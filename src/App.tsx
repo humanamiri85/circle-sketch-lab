@@ -1,16 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { Point, Stroke } from './features/paths/path';
 import { exampleStroke, periodicSamples } from './features/paths/path';
-import { chooseCoefficients, directDft, discreteRmse } from './features/fourier/dft';
+import { chooseCoefficients, discreteRmse } from './features/fourier/dft';
+import { fftCoefficients } from './features/fourier/fft';
+import { resizeImage } from './features/import/loadImage';
+import { DEFAULT_TRACE_OPTIONS } from './features/import/contours';
+import type { TraceOptions } from './features/import/contours';
 import { renderScene, screenToWorld } from './features/animation/draw';
 
 const SAMPLE_COUNT = 256;
 type ExampleName = 'circle' | 'square' | 'flower';
 
 export default function App() {
-  const [stroke, setStroke] = useState<Stroke>(() => exampleStroke('flower'));
-  const [selectedExample, setSelectedExample] = useState<ExampleName | 'custom'>('flower');
+  const [strokes, setStrokes] = useState<Stroke[]>(() => [exampleStroke('flower')]);
+  const [selectedExample, setSelectedExample] = useState<ExampleName | 'custom' | 'image'>('flower');
   const [harmonics, setHarmonics] = useState(36);
   const [phase, setPhase] = useState(0);
   const [playing, setPlaying] = useState(true);
@@ -20,30 +25,40 @@ export default function App() {
   const [original, setOriginal] = useState(true);
   const [drawMode, setDrawMode] = useState(false);
   const [closeDrawing, setCloseDrawing] = useState(false);
-  const [feedback, setFeedback] = useState('Choose an example or draw a path to begin.');
+  const [feedback, setFeedback] = useState('Choose an example, upload an image or draw a path.');
+  const [imageName,setImageName] = useState('');
+  const [imagePreview,setImagePreview] = useState('');
+  const [imageVersion,setImageVersion] = useState(0);
+  const [processing,setProcessing] = useState(false);
+  const [traceOptions,setTraceOptions] = useState<TraceOptions>(DEFAULT_TRACE_OPTIONS);
+  const raster=useRef<ImageData|null>(null);
+  const requestId=useRef(0);
+  const fileInput=useRef<HTMLInputElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const draft = useRef<Point[]>([]);
   const drawingNow = useRef(false);
 
-  const samples = useMemo(() => periodicSamples(stroke, SAMPLE_COUNT), [stroke]);
-  const spectrum = useMemo(() => directDft(samples), [samples]);
-  const coefficients = useMemo(() => chooseCoefficients(spectrum, harmonics), [spectrum, harmonics]);
-  const rmse = useMemo(() => discreteRmse(samples, coefficients), [samples, coefficients]);
+  const samples = useMemo(() => strokes.map(s => periodicSamples(s, SAMPLE_COUNT)), [strokes]);
+  const spectrum = useMemo(() => samples.map(fftCoefficients), [samples]);
+  const coefficients = useMemo(() => spectrum.map(s => chooseCoefficients(s, harmonics)), [spectrum, harmonics]);
+  const rmse = useMemo(() => samples.length ?
+    Math.sqrt(samples.reduce((sum, points, i) => sum + discreteRmse(points, coefficients[i])**2, 0)/samples.length) : 0,
+    [samples, coefficients]);
 
   useEffect(() => {
     const el = canvas.current;
     if (!el) return;
-    const draw = () => renderScene(el, stroke, coefficients, phase, {
+    const draw = () => renderScene(el, strokes, coefficients, phase, {
       showCircles: circles, showTrace: trace, showOriginal: original,
     }, draft.current);
     draw();
     const observer = new ResizeObserver(draw);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [stroke, coefficients, phase, circles, trace, original, drawMode]);
+  }, [strokes, coefficients, phase, circles, trace, original, drawMode]);
 
   useEffect(() => {
-    if (!playing || drawMode) return;
+    if (!playing || drawMode || processing || strokes.length === 0) return;
     let raf = 0;
     let last: number | null = null;
     const animate = (time: number) => {
@@ -56,23 +71,25 @@ export default function App() {
     };
     raf = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(raf);
-  }, [playing, speed, drawMode]);
+  }, [playing, speed, drawMode, processing, strokes.length]);
 
   const choose = (name: ExampleName) => {
-    setStroke(exampleStroke(name));
+    requestId.current++; raster.current = null; setImageVersion(v => v+1); setProcessing(false);
+    setStrokes([exampleStroke(name)]);
     setSelectedExample(name);
     setPhase(0);
     setDrawMode(false);
     setFeedback(name[0].toUpperCase() + name.slice(1) + ' loaded. Change harmonics to examine the approximation.');
   };
   const startDraw = () => {
+    requestId.current++; raster.current = null; setImageVersion(v => v+1);
     setPlaying(false);
     setDrawMode(true);
     setFeedback('Draw one continuous stroke inside the canvas. Release to fit it.');
     draft.current = [];
   };
   const redrawDraft = () => {
-    if (canvas.current) renderScene(canvas.current, stroke, coefficients, phase, {
+    if (canvas.current) renderScene(canvas.current, strokes, coefficients, phase, {
       showCircles: circles, showTrace: trace, showOriginal: original,
     }, draft.current);
   };
@@ -104,7 +121,7 @@ export default function App() {
       redrawDraft();
       return;
     }
-    setStroke({ name: 'Your drawing', points, closed: closeDrawing });
+    setStrokes([{ name: 'Your drawing', points, closed: closeDrawing }]);
     setSelectedExample('custom');
     setPhase(0);
     setDrawMode(false);
@@ -119,16 +136,16 @@ export default function App() {
           <strong>Fourier Sketch <span>Studio</span></strong>
           <small>THE ART OF HARMONICS</small>
         </div></div>
-        <div className="topbar-right"><span className="phase-chip">PHASE 01 · INTERACTIVE STUDIO</span><a href="https://github.com/humanamiri85/circle-sketch-lab" target="_blank" rel="noreferrer">View on GitHub ↗</a></div>
+        <div className="topbar-right"><span className="phase-chip">PHASE 02 · IMAGE LAB</span><a href="https://github.com/humanamiri85/circle-sketch-lab" target="_blank" rel="noreferrer">View on GitHub ↗</a></div>
       </header>
       <section className="intro">
-        <div><p className="eyebrow">MATHEMATICS IN MOTION</p><h1>Draw with <em>frequencies.</em></h1><p className="intro-copy">Watch rotating vectors recreate any path. Sketch your own shape, explore Fourier harmonics, and see precision emerge.</p></div>
-        <div className="privacy-label">◇ &nbsp;100% client-side computation</div>
+        <div><p className="eyebrow">MATHEMATICS IN MOTION</p><h1>Turn images into <em>frequencies.</em></h1><p className="intro-copy">Upload a photo, extract its silhouettes, and watch independent Fourier epicycles redraw each contour.</p></div>
+        <div className="privacy-label">◇ &nbsp;Your images stay on this device</div>
       </section>
       <main className="workspace">
         <aside className="panel input-panel">
-          <div className="panel-title"><span className="section-number">01</span><h2>Source path</h2></div>
-          <p className="panel-subtitle">Start with a mathematical shape or create your own.</p>
+          <div className="panel-title"><span className="section-number">01</span><h2>Source image & paths</h2></div>
+          <p className="panel-subtitle">Upload a photo, choose an example or draw your own.</p>
           <h3>EXAMPLES</h3>
           <div className="example-grid">
             {(['circle', 'square', 'flower'] as ExampleName[]).map(name => <button
@@ -147,26 +164,26 @@ export default function App() {
           <div className="tip-card"><b>How it works</b><p>Each point becomes a complex number. Fourier coefficients describe how rotating vectors combine to retrace the path.</p></div>
         </aside>
         <section className="viewer" aria-label="Fourier animation canvas">
-          <div className="viewer-head"><div><span className="live-dot" /> LIVE FOURIER CANVAS</div><span>{SAMPLE_COUNT} SAMPLES · {harmonics} HARMONICS + DC</span></div>
+          <div className="viewer-head"><div><span className="live-dot" /> LIVE FOURIER CANVAS</div><span>{SAMPLE_COUNT} SAMPLES · {harmonics} HARMONICS + DC · {strokes.length} PATHS</span></div>
           <div className={'canvas-container ' + (drawMode ? 'drawing' : '')}>
             <canvas ref={canvas} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp}
               onPointerCancel={() => { drawingNow.current = false; draft.current = []; redrawDraft(); }}
-              aria-label={drawMode ? 'Draw your path here' : 'Fourier approximation of ' + stroke.name} />
+              aria-label={drawMode ? 'Draw your path here' : 'Fourier approximation of ' + selectedExample} />
             {drawMode && <div className="canvas-hint">Drag your finger, mouse or stylus to draw</div>}
             <div className="canvas-legend"><span><i className="legend-trace" /> Reconstructed</span><span><i className="legend-source" /> Original path</span></div>
           </div>
           <div className="transport">
-            <button className="transport-main" onClick={() => { setPlaying(p => !p); setDrawMode(false); }} aria-label={playing ? 'Pause animation' : 'Play animation'}>{playing ? 'Ⅱ' : '▶'}</button>
+            <button className="transport-main" disabled={processing || strokes.length === 0} onClick={() => { setPlaying(p => !p); setDrawMode(false); }} aria-label={playing ? 'Pause animation' : 'Play animation'}>{playing ? 'Ⅱ' : '▶'}</button>
             <button className="transport-reset" onClick={() => { setPhase(0); setPlaying(false); }} aria-label="Restart animation">↺</button>
             <label className="scrubber"><span>PROGRESS</span><input aria-label="Animation progress" type="range" min="0" max="1000" value={Math.round(phase * 1000)} onChange={e => { setPlaying(false); setPhase(Number(e.target.value) / 1000); }} /><output>{Math.round(phase * 100)}%</output></label>
           </div>
         </section>
         <aside className="panel settings-panel">
           <div className="panel-title"><span className="section-number">02</span><h2>Fourier controls</h2></div>
-          <p className="panel-subtitle">Fine-tune the reconstruction.</p>
-          <div className="setting-head"><label htmlFor="harmonics">Non-DC harmonics</label><output>{harmonics}</output></div>
-          <input id="harmonics" type="range" min="1" max="96" step="1" value={harmonics} onChange={e => setHarmonics(Number(e.target.value))} />
-          <div className="range-labels"><span>1 · Minimal</span><span>96 · Detailed</span></div>
+          <p className="panel-subtitle">Fine-tune the reconstruction of each contour.</p>
+          <div className="setting-head"><label htmlFor="harmonics">Non-DC harmonics per path</label><output>{harmonics}</output></div>
+          <input id="harmonics" type="range" min="1" max="128" step="1" value={harmonics} onChange={e => setHarmonics(Number(e.target.value))} />
+          <div className="range-labels"><span>1 · Minimal</span><span>128 · Detailed</span></div>
           <div className="setting-head"><label htmlFor="speed">Animation speed</label><output>{speed.toFixed(1)}×</output></div>
           <input id="speed" type="range" min="0.2" max="3" step="0.2" value={speed} onChange={e => setSpeed(Number(e.target.value))} />
           <div className="range-labels"><span>0.2×</span><span>3×</span></div>
@@ -175,12 +192,12 @@ export default function App() {
           <label className="switch-row"><span>Epicycle circles</span><input type="checkbox" checked={circles} onChange={e => setCircles(e.target.checked)} /></label>
           <label className="switch-row"><span>Reconstructed trail</span><input type="checkbox" checked={trace} onChange={e => setTrace(e.target.checked)} /></label>
           <label className="switch-row"><span>Original path guide</span><input type="checkbox" checked={original} onChange={e => setOriginal(e.target.checked)} /></label>
-          <div className="metric-card"><span>DISCRETE RECONSTRUCTION ERROR</span><strong>{rmse.toFixed(5)}</strong><small>RMSE · normalized coordinate units</small></div>
-          <p className="setting-note">DC (frequency 0) is always included. Remaining coefficients are added in low-frequency order.</p>
+          <div className="metric-card"><span>AVERAGE PATH RECONSTRUCTION ERROR</span><strong>{rmse.toFixed(5)}</strong><small>RMSE · normalized coordinate units</small></div>
+          <p className="setting-note">DC (frequency 0) is always included. Each contour is drawn independently. Remaining coefficients are added in low-frequency order.</p>
         </aside>
       </main>
-      <div className="bottom-status"><span className="status-dot" /> {feedback}</div>
-      <footer><span>FOURIER SKETCH STUDIO · ORIGINAL EDUCATIONAL PROJECT</span><span>Phase 1 / Prototype · Raster import & exports planned later</span></footer>
+      <div className="bottom-status" role="status" aria-live="polite"><span className="status-dot" /> {feedback}</div>
+      <footer><span>FOURIER SKETCH STUDIO · ORIGINAL EDUCATIONAL PROJECT</span><span>Phase 2 / Photo contours & FFT · Exports planned later</span></footer>
     </div>
   );
 }
