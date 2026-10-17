@@ -74,6 +74,11 @@ export function ImagePreprocessPanel({
   imageUrl, imageName, processing, options, preview, onOptionsChange,
 }: Props) {
   const change = (values: Partial<PreprocessOptions>) => onOptionsChange({ ...options, ...values });
+  const presets = [
+    { label: 'Logo', values: { mode: 'silhouette', method: 'basic', contrast: 35, blur: 1, cleanup: 1, invert: false } },
+    { label: 'Sketch', values: { mode: 'outline', method: 'canny', contrast: 30, blur: 1, cleanup: 1, invert: false } },
+    { label: 'Photo', values: { mode: 'outline', method: 'canny', contrast: 65, blur: 2, cleanup: 2, invert: false } },
+  ] as const;
   return <div className="preprocess-panel">
     <div className="preprocess-header">
       <h3>SMART IMAGE CLEANUP</h3>
@@ -83,23 +88,46 @@ export function ImagePreprocessPanel({
       </button>
     </div>
     <div className="image-preview"><img src={imageUrl} alt="Original uploaded image" /><span title={imageName}>{imageName}</span></div>
+    <h3 className="preset-heading">QUICK PRESETS</h3>
+    <div className="preprocess-presets" role="group" aria-label="Image processing presets">
+      {presets.map(p => <button key={p.label} type="button"
+        onClick={() => change({ ...p.values, autoThreshold: true, threshold: 128 })}>
+        {p.label}
+      </button>)}
+    </div>
     <div className="setting-head"><label htmlFor="image-mode">Detection mode</label></div>
     <select id="image-mode" className="image-select" value={options.mode}
-      onChange={e => change({ mode: e.target.value as PreprocessOptions['mode'] })}>
+      onChange={e => {
+        const mode = e.target.value as PreprocessOptions['mode'];
+        change({ mode, method: mode === 'outline' ? 'canny' : 'basic' });
+      }}>
       <option value="silhouette">Silhouette · dark regions</option>
       <option value="outline">Outline · image edges</option>
     </select>
+    <div className="setting-head"><label htmlFor="processing-method">Processing algorithm</label></div>
+    <select className="image-select" id="processing-method" value={options.method}
+      onChange={e => change({ method: e.target.value as PreprocessOptions['method'] })}>
+      <option value="basic">{options.mode === 'outline' ? 'Sobel gradient' : 'Global / Otsu threshold'}</option>
+      <option value="adaptive">Adaptive local threshold</option>
+      <option value="canny">Canny edge detection</option>
+    </select>
     <p className="source-help">
-      {options.mode === 'outline'
-        ? 'Edges are detected with a Sobel filter. Best for sketches and clear lines.'
-        : 'Trace the boundaries of dark or light regions. Best for logos and filled shapes.'}
+      {options.method === 'canny' ? 'Thin gradient ridges with hysteresis. The polygon contour tracer may still outline both sides of a narrow edge.' :
+       options.method === 'adaptive' ? 'Compare each pixel with its local neighborhood to handle uneven lighting.' :
+       options.mode === 'outline' ? 'Basic Sobel gradient edges.' :
+       'Global black/white region boundaries; useful for logos and filled shapes.'}
     </p>
+    <div className="setting-head"><label htmlFor="image-contrast">Contrast enhancement</label>
+      <output>{options.contrast}%</output></div>
+    <input id="image-contrast" type="range" min="0" max="100" step="5" value={options.contrast}
+      onChange={e => change({ contrast: Number(e.target.value) })} />
     <label className="check-row"><input type="checkbox" checked={options.autoThreshold}
       onChange={e => change({ autoThreshold: e.target.checked })} />
       Automatically choose threshold
     </label>
     <div className="setting-head"><label htmlFor="image-threshold">
-      {options.mode === 'outline' ? 'Edge sensitivity' : 'Black / white threshold'}
+      {options.method === 'canny' ? 'Canny high threshold' : options.method === 'adaptive' ? 'Local sensitivity' :
+        options.mode === 'outline' ? 'Edge sensitivity' : 'Black / white threshold'}
     </label><output>{options.autoThreshold ? (preview?.thresholdUsed ?? 'Auto') : options.threshold}</output></div>
     <input id="image-threshold" type="range" min="1" max="254" value={options.threshold}
       disabled={options.autoThreshold} onChange={e => change({ threshold: Number(e.target.value) })} />
@@ -107,9 +135,14 @@ export function ImagePreprocessPanel({
     <input id="image-blur" type="range" min="0" max="4" step="1" value={options.blur}
       onChange={e => change({ blur: Number(e.target.value) })} />
     <label className="check-row"><input type="checkbox" checked={options.invert}
-      disabled={options.mode === 'outline'} onChange={e => change({ invert: e.target.checked })} />
-      Trace light areas instead {options.mode === 'outline' ? '(silhouette only)' : ''}
+      disabled={options.method === 'canny' || (options.method === 'basic' && options.mode === 'outline')}
+      onChange={e => change({ invert: e.target.checked })} />
+      Trace light areas instead {options.method === 'canny' || (options.method === 'basic' && options.mode === 'outline') ? '(not applicable)' : ''}
     </label>
+    <div className="setting-head"><label htmlFor="image-cleanup">Remove small specks</label>
+      <output>{['Off', 'Light', 'Strong'][options.cleanup]}</output></div>
+    <input id="image-cleanup" type="range" min="0" max="2" step="1" value={options.cleanup}
+      onChange={e => change({ cleanup: Number(e.target.value) })} />
     <div className="setting-head"><label htmlFor="minimum-perimeter">Minimum contour size</label>
       <output>{options.minPerimeter} px</output></div>
     <input id="minimum-perimeter" type="range" min="0" max="160" step="4"
