@@ -37,7 +37,7 @@ describe('Phase 4: advanced image preprocessing', () => {
     }
     const mask = adaptiveBinary(gray, w, h, 4, 8, false);
     expect(mask[6 * w + 9]).toBe(0);
-    expect(mask[0]).toBe(255);
+    expect(mask[2 * w + 4]).toBe(255); // interior illumination ramp, outside the shape
     expect(mask.some(v => v === 0)).toBe(true);
     expect(() => adaptiveBinary(gray, w, h, 99, 8)).toThrow();
   });
