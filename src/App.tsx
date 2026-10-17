@@ -6,8 +6,10 @@ import { exampleStroke, periodicSamples } from './features/paths/path';
 import { chooseCoefficients, discreteRmse } from './features/fourier/dft';
 import { fftCoefficients } from './features/fourier/fft';
 import { resizeImage } from './features/import/loadImage';
-import { DEFAULT_TRACE_OPTIONS } from './features/import/contours';
-import type { TraceOptions } from './features/import/contours';
+import { DEFAULT_PREPROCESS_OPTIONS } from './features/preprocess/imageProcessing';
+import type { PreprocessOptions } from './features/preprocess/imageProcessing';
+import { ImagePreprocessPanel } from './components/ImagePreprocessPanel';
+import type { PreviewStages } from './components/ImagePreprocessPanel';
 import { renderScene, screenToWorld } from './features/animation/draw';
 
 const SAMPLE_COUNT = 256;
@@ -30,7 +32,8 @@ export default function App() {
   const [imagePreview,setImagePreview] = useState('');
   const [imageVersion,setImageVersion] = useState(0);
   const [processing,setProcessing] = useState(false);
-  const [traceOptions,setTraceOptions] = useState<TraceOptions>(DEFAULT_TRACE_OPTIONS);
+  const [traceOptions,setTraceOptions] = useState<PreprocessOptions>(DEFAULT_PREPROCESS_OPTIONS);
+  const [previewStages,setPreviewStages] = useState<PreviewStages | null>(null);
   const raster=useRef<ImageData|null>(null);
   const requestId=useRef(0);
   const fileInput=useRef<HTMLInputElement>(null);
@@ -86,10 +89,19 @@ export default function App() {
       const rgba=image.data.slice();
       worker.postMessage({id,rgba:rgba.buffer,width:image.width,height:image.height,options:traceOptions},[rgba.buffer]);
     },120);
-    worker.onmessage=(event:MessageEvent<{id:number;strokes?:Stroke[];error?:string}>)=>{
+    worker.onmessage=(event:MessageEvent<{id:number;width?:number;height?:number;strokes?:Stroke[];grayscale?:ArrayBuffer;binary?:ArrayBuffer;thresholdUsed?:number;error?:string}>)=>{
       if(event.data.id!==requestId.current)return;
       setProcessing(false);
-      if(event.data.error){setFeedback(event.data.error);return;}
+      if(event.data.error){setPreviewStages(null);setFeedback(event.data.error);return;}
+      if (event.data.grayscale && event.data.binary && event.data.width && event.data.height &&
+          event.data.thresholdUsed !== undefined) {
+        setPreviewStages({
+          width: event.data.width, height: event.data.height,
+          grayscale: new Uint8ClampedArray(event.data.grayscale),
+          binary: new Uint8ClampedArray(event.data.binary),
+          strokes: event.data.strokes || [], thresholdUsed: event.data.thresholdUsed,
+        });
+      }
       const result=event.data.strokes||[];
       setStrokes(result);setSelectedExample('image');setPhase(0);
       setFeedback(result.length ? 'Extracted '+result.length+' independent image contours from '+imageName+'.'
@@ -110,6 +122,7 @@ export default function App() {
     const id=++requestId.current;
     setPlaying(false);setDrawMode(false);setProcessing(true);
     setFeedback('Decoding image locally…');
+    setPreviewStages(null);
     try{
       const image=await resizeImage(file);
       if(id!==requestId.current)return;
@@ -123,7 +136,7 @@ export default function App() {
   };
 
   const choose = (name: ExampleName) => {
-    requestId.current++; raster.current = null; setImageVersion(v => v+1); setProcessing(false);
+    requestId.current++; raster.current = null; setPreviewStages(null); setImageVersion(v => v+1); setProcessing(false);
     setStrokes([exampleStroke(name)]);
     setSelectedExample(name);
     setPhase(0);
@@ -131,7 +144,7 @@ export default function App() {
     setFeedback(name[0].toUpperCase() + name.slice(1) + ' loaded. Change harmonics to examine the approximation.');
   };
   const startDraw = () => {
-    requestId.current++; raster.current = null; setImageVersion(v => v+1);
+    requestId.current++; raster.current = null; setPreviewStages(null); setImageVersion(v => v+1);
     setPlaying(false);
     setDrawMode(true);
     setFeedback('Draw one continuous stroke inside the canvas. Release to fit it.');
@@ -185,10 +198,10 @@ export default function App() {
           <strong>Fourier Sketch <span>Studio</span></strong>
           <small>THE ART OF HARMONICS</small>
         </div></div>
-        <div className="topbar-right"><span className="phase-chip">PHASE 02 · IMAGE LAB</span><a href="https://github.com/humanamiri85/circle-sketch-lab" target="_blank" rel="noreferrer">View on GitHub ↗</a></div>
+        <div className="topbar-right"><span className="phase-chip">PHASE 02.1 · SMART IMAGE CLEANUP</span><a href="https://github.com/humanamiri85/circle-sketch-lab" target="_blank" rel="noreferrer">View on GitHub ↗</a></div>
       </header>
       <section className="intro">
-        <div><p className="eyebrow">MATHEMATICS IN MOTION</p><h1>Turn images into <em>frequencies.</em></h1><p className="intro-copy">Upload a photo, extract its silhouettes, and watch independent Fourier epicycles redraw each contour.</p></div>
+        <div><p className="eyebrow">MATHEMATICS IN MOTION</p><h1>Turn images into <em>frequencies.</em></h1><p className="intro-copy">Upload a photo, clean it automatically or adjust the black-and-white and edge settings, and animate its Fourier contours.</p></div>
         <div className="privacy-label">◇ &nbsp;Your images stay on this device</div>
       </section>
       <main className="workspace">
@@ -199,16 +212,9 @@ export default function App() {
           <input className="visually-hidden" ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" onChange={onImage} aria-label="Select image for Fourier tracing" />
           <button className="action-button" disabled={processing} onClick={() => fileInput.current?.click()}>{processing ? '◌ Extracting contours…' : '↑ Upload photo'}</button>
           <p className="source-help">PNG / JPG / WebP · up to 10 MB. Works best on high-contrast images.</p>
-          {imagePreview && <>
-            <div className="image-preview"><img src={imagePreview} alt="Your uploaded image" /><span title={imageName}>{imageName}</span></div>
-            <div className="trace-controls">
-              <div className="setting-head"><label htmlFor="threshold">Threshold</label><output>{traceOptions.threshold}</output></div>
-              <input id="threshold" type="range" min="1" max="254" value={traceOptions.threshold} onChange={e => setTraceOptions(t=>({...t,threshold:Number(e.target.value)}))} />
-              <div className="setting-head"><label htmlFor="max-paths">Maximum contours</label><output>{traceOptions.maxPaths}</output></div>
-              <input id="max-paths" type="range" min="1" max="12" value={traceOptions.maxPaths} onChange={e=>setTraceOptions(t=>({...t,maxPaths:Number(e.target.value)}))} />
-              <label className="check-row"><input type="checkbox" checked={traceOptions.invert} onChange={e=>setTraceOptions(t=>({...t,invert:e.target.checked}))} /> Trace light areas instead</label>
-            </div>
-          </>}
+          {imagePreview && <ImagePreprocessPanel imageUrl={imagePreview} imageName={imageName}
+            processing={processing} options={traceOptions} preview={previewStages}
+            onOptionsChange={setTraceOptions} />}
           <div className="panel-rule" />
           <h3>EXAMPLES</h3>
           <div className="example-grid">
@@ -262,7 +268,7 @@ export default function App() {
         </aside>
       </main>
       <div className="bottom-status" role="status" aria-live="polite"><span className="status-dot" /> {feedback}</div>
-      <footer><span>FOURIER SKETCH STUDIO · ORIGINAL EDUCATIONAL PROJECT</span><span>Phase 2 / Photo contours & FFT · Exports planned later</span></footer>
+      <footer><span>FOURIER SKETCH STUDIO · ORIGINAL EDUCATIONAL PROJECT</span><span>Phase 2.1 / Auto image cleanup · Contour preview · Exports planned later</span></footer>
     </div>
   );
 }
