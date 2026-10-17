@@ -10,6 +10,8 @@ export function pointAt(stroke: Stroke, u: number): Point {
   const points = stroke.points;
   if (points.length === 0) return { x: 0, y: 0 };
   if (points.length === 1) return points[0];
+  if (u <= 0) return points[0];
+  if (u >= 1) return stroke.closed ? points[0] : points[points.length - 1];
   const segments = points.length - 1 + Number(stroke.closed);
   const distances: number[] = [];
   let total = 0;
