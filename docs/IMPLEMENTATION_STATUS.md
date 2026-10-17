@@ -15,3 +15,10 @@
 
 ## Deferred
 Image/SVG import, photo tracing, spectrum plots, FFT acceleration, recorder and advanced lessons.
+
+## Phase 2 PR status
+- Image upload PNG/JPG/WebP, local 224px downsampling, threshold inversion and max contour count.
+- Silhouette boundary polygon extraction, worker processing, isolated FFT coefficients per closed contour.
+- Multicontour animation with pen lifted between disconnected paths.
+- Browser usability and screenshot QA still required before the PR is merged.
+- High-contrast drawings are the supported focus, not photorealistic edge-feature tracing.

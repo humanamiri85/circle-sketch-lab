@@ -86,3 +86,16 @@ footer {display: flex; gap: 20px; justify-content: space-between; flex-wrap: wra
 @media (max-width: 1200px) {.workspace {grid-template-columns: 250px minmax(360px,1fr)}.settings-panel {grid-column: 1 / -1; display: block}}
 @media (max-width: 800px) {.site-shell {padding: 0 16px 20px}.topbar {height: auto; padding: 20px 0; align-items: flex-start; flex-wrap: wrap}.intro {padding: 32px 0; align-items: start; flex-direction: column}.workspace {display:flex; flex-direction:column}.viewer {order: -1}.canvas-container {height: min(110vw,540px)}.phase-chip {display:none}.panel {padding: 20px}.privacy-label {white-space: normal}}
 @media (prefers-reduced-motion: reduce) {*,*::before,*::after {scroll-behavior: auto !important; transition: none !important; animation: none !important}}
+
+
+/* Phase 2: image import and threshold controls */
+.visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.action-button:disabled,.transport button:disabled{opacity:.55;cursor:wait}
+.source-help{color:#93a9c4;font-size:11px;line-height:1.5;margin:9px 0 12px}
+.image-preview{border:1px solid #2f4862;background:#101f35;border-radius:10px;margin-top:12px;overflow:hidden;padding:8px}
+.image-preview img{width:100%;height:110px;object-fit:contain;background:#fff;border-radius:6px;display:block}
+.image-preview span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:8px;color:#b9d1e8;font-size:11px}
+.trace-controls{margin-top:14px;padding:11px;border:1px solid #314c60;border-radius:9px;background:#101f34}
+.trace-controls input[type=range]{width:100%;accent-color:#65e4c7}
+.trace-controls .setting-head{margin-top:7px;margin-bottom:7px}
+.trace-controls .check-row{margin-top:13px}

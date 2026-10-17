@@ -2,7 +2,7 @@
 
 An original, browser-first Fourier epicycle visualizer. Draw your own paths or explore mathematical examples, see rotating harmonics and measure numerical reconstruction error.
 
-## Current status: Phase 1 (prototype)
+## Current status: Phase 2 (image contour beta)
 - Working example inputs: circle, square, flower
 - Freehand pointer drawing, with explicit open/closed path setting
 - Arc-length resampling, 256 complex samples
@@ -34,3 +34,14 @@ See docs/ARCHITECTURE.md, docs/PRODUCT_SPEC.md, docs/ROADMAP.md, docs/TEST_STRAT
 All drawing/computation is local to the browser. No images are uploaded. The project reimplements mathematical behavior independently; it does not copy proprietary code, brand or assets from a reference site.
 
 License is not selected yet.
+
+
+## Phase 2 additions (in review)
+- Upload PNG/JPEG/WebP files (up to 10 MB); local browser decode and resize to 224 pixels on the longest side.
+- Threshold/invert controls and 1–12 separately extracted polygon contours; data never leaves your browser.
+- Worker-based contour detection and signed complex radix-2 FFT in place of reference DFT.
+- Independent path-by-path pen-up animation; every path has its own coefficients, with no invented bridging lines.
+- Photo processing **traces high-contrast region boundaries**, not every internal feature of a complex photograph. No image/SVG/video download yet.
+- More numerical and synthetic contour tests.
+
+**Important:** The initial Phase 1 statements about raster import being unimplemented in the older README section are superseded by the Phase 2 additions above, once this PR merges.
