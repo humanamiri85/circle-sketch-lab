@@ -1,8 +1,13 @@
 /** Deterministic browser/worker-safe grayscale, denoising and mask generation. */
+import { adaptiveBinary, cannyBinary, enhanceContrast, removeSpecks } from './advanced';
+export type ProcessingMethod = 'basic' | 'adaptive' | 'canny';
 export type ImageMode = 'silhouette' | 'outline';
 
 export type PreprocessOptions = Readonly<{
   mode: ImageMode;
+  method: ProcessingMethod;
+  contrast: number;
+  cleanup: number;
   autoThreshold: boolean;
   threshold: number;
   blur: number;
@@ -13,6 +18,9 @@ export type PreprocessOptions = Readonly<{
 
 export const DEFAULT_PREPROCESS_OPTIONS: PreprocessOptions = {
   mode: 'silhouette',
+  method: 'basic',
+  contrast: 0,
+  cleanup: 0,
   autoThreshold: true,
   threshold: 128,
   blur: 1,
@@ -29,6 +37,9 @@ export type ProcessedImage = {
 
 function valid(options: PreprocessOptions): void {
   if (!['silhouette', 'outline'].includes(options.mode) ||
+      !['basic', 'adaptive', 'canny'].includes(options.method) ||
+      !Number.isInteger(options.contrast) || options.contrast < 0 || options.contrast > 100 ||
+      !Number.isInteger(options.cleanup) || options.cleanup < 0 || options.cleanup > 2 ||
       typeof options.autoThreshold !== 'boolean' ||
       typeof options.invert !== 'boolean' ||
       !Number.isFinite(options.threshold) || options.threshold < 1 || options.threshold > 254 ||
@@ -138,19 +149,34 @@ export function preprocessImage(
 ): ProcessedImage {
   valid(options);
   const grayscale = rgbaToGray(rgba, width, height);
-  const smooth = boxBlur(grayscale, width, height, options.blur);
-  const measure = options.mode === 'outline' ? sobelMagnitude(smooth, width, height) : smooth;
-  const thresholdUsed = options.autoThreshold ?
-    (options.mode === 'outline' ? autoEdgeThreshold(measure) : otsuThreshold(measure)) :
-    options.threshold;
-  const binary = new Uint8ClampedArray(measure.length);
-  for (let i = 0; i < binary.length; i++) {
-    const foreground = options.mode === 'outline'
-      ? measure[i] >= thresholdUsed && measure[i] > 0
-      : (options.invert ? measure[i] > thresholdUsed : measure[i] <= thresholdUsed);
-    binary[i] = foreground ? 0 : 255;
+  const smooth = boxBlur(enhanceContrast(grayscale, options.contrast), width, height, options.blur);
+  let binary: Uint8ClampedArray;
+  let thresholdUsed: number;
+  if (options.method === 'canny') {
+    const canny = cannyBinary(smooth, width, height, options.autoThreshold ? undefined : options.threshold);
+    binary = canny.binary;
+    thresholdUsed = canny.thresholdUsed;
+  } else if (options.method === 'adaptive') {
+    // Map existing threshold slider into an intuitive local-mean offset.
+    const localOffset = options.autoThreshold ? 9 : Math.round(9 + (options.threshold - 128) / 8);
+    binary = adaptiveBinary(smooth, width, height, 9, localOffset, options.invert);
+    thresholdUsed = localOffset;
+  } else {
+    const measure = options.mode === 'outline' ? sobelMagnitude(smooth, width, height) : smooth;
+    thresholdUsed = options.autoThreshold ?
+      (options.mode === 'outline' ? autoEdgeThreshold(measure) : otsuThreshold(measure)) :
+      options.threshold;
+    binary = new Uint8ClampedArray(measure.length);
+    for (let i = 0; i < binary.length; i++) {
+      const foreground = options.mode === 'outline'
+        ? measure[i] >= thresholdUsed && measure[i] > 0
+        : (options.invert ? measure[i] > thresholdUsed : measure[i] <= thresholdUsed);
+      binary[i] = foreground ? 0 : 255;
+    }
   }
-  return { grayscale: smooth, binary, thresholdUsed };
+  const clean = options.cleanup === 0 ? binary :
+    removeSpecks(binary, width, height, options.cleanup === 1 ? 3 : 10);
+  return { grayscale: smooth, binary: clean, thresholdUsed };
 }
 
 /** Repackage exact processed mask for the current contour tracer. */

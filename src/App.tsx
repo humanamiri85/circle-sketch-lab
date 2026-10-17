@@ -198,10 +198,10 @@ export default function App() {
           <strong>Fourier Sketch <span>Studio</span></strong>
           <small>THE ART OF HARMONICS</small>
         </div></div>
-        <div className="topbar-right"><span className="phase-chip">PHASE 02.1 · SMART IMAGE CLEANUP</span><a href="https://github.com/humanamiri85/circle-sketch-lab" target="_blank" rel="noreferrer">View on GitHub ↗</a></div>
+        <div className="topbar-right"><span className="phase-chip">PHASE 04 · ADVANCED IMAGE LAB</span><a href="https://github.com/humanamiri85/circle-sketch-lab" target="_blank" rel="noreferrer">View on GitHub ↗</a></div>
       </header>
       <section className="intro">
-        <div><p className="eyebrow">MATHEMATICS IN MOTION</p><h1>Turn images into <em>frequencies.</em></h1><p className="intro-copy">Upload a photo, clean it automatically or adjust the black-and-white and edge settings, and animate its Fourier contours.</p></div>
+        <div><p className="eyebrow">MATHEMATICS IN MOTION</p><h1>Turn images into <em>frequencies.</em></h1><p className="intro-copy">Upload a photo, choose Logo / Sketch / Photo processing, and refine its contours with local thresholding or Canny edges before Fourier animation.</p></div>
         <div className="privacy-label">◇ &nbsp;Your images stay on this device</div>
       </section>
       <main className="workspace">
@@ -268,7 +268,7 @@ export default function App() {
         </aside>
       </main>
       <div className="bottom-status" role="status" aria-live="polite"><span className="status-dot" /> {feedback}</div>
-      <footer><span>FOURIER SKETCH STUDIO · ORIGINAL EDUCATIONAL PROJECT</span><span>Phase 2.1 / Auto image cleanup · Contour preview · Exports planned later</span></footer>
+      <footer><span>FOURIER SKETCH STUDIO · ORIGINAL EDUCATIONAL PROJECT</span><span>Phase 4 / Advanced contrast, adaptive threshold and Canny · Exports planned later</span></footer>
     </div>
   );
 }
