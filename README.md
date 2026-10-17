@@ -13,6 +13,14 @@ An original, browser-first Fourier epicycle visualizer. Draw your own paths or e
 
 Not implemented yet: raster/photo vectorization, SVG input/output, browser video recording, FFT/Web Workers, advanced spectrum/error lab, lessons.
 
+
+## Phase 2.1: smart image preprocessing
+- Upload PNG/JPG/WebP and locally preprocess without uploading images to a server.
+- Auto (Otsu for silhouette, edge-percentile for outline) or manual threshold; adjustable box blur and minimum contour length.
+- Select **Silhouette** for filled dark shapes or **Outline** for image boundaries (Sobel magnitude, not Canny or background removal).
+- Four previews: original, grayscale, black-and-white mask and contour paths; changes re-trace the Fourier paths in a Web Worker.
+- Limitations: noisy photos can still produce doubled or fragmented edges; masking is not semantic segmentation. Outline mode deliberately disables polarity inversion. The previews show downsampled raster processing, not full-resolution images.
+
 ## Run locally
 Requires Node.js 22.
 
