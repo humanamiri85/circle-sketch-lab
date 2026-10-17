@@ -99,3 +99,21 @@ footer {display: flex; gap: 20px; justify-content: space-between; flex-wrap: wra
 .trace-controls input[type=range]{width:100%;accent-color:#65e4c7}
 .trace-controls .setting-head{margin-top:7px;margin-bottom:7px}
 .trace-controls .check-row{margin-top:13px}
+
+/* Phase 2.1 — smart local image preprocessing */
+.preprocess-panel {margin-top:15px; padding:12px; border:1px solid #315068; border-radius:11px; background:#101f34}
+.preprocess-header {display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px}
+.preprocess-header h3 {margin:0; color:#82e7d3}
+.preprocess-header .auto-button {width:auto; margin:0; padding:8px 11px; font-size:11px}
+.image-select {display:block; width:100%; padding:10px; border:1px solid #365773; border-radius:8px; color:#edf4ff; background:#0d1b31; font-size:12px}
+.preprocess-panel .check-row {margin:12px 0; line-height:1.55}
+.preprocess-panel .setting-head {margin:13px 0 8px}
+.preprocess-panel input[type=range]:disabled {opacity:.4; cursor:default}
+.preprocess-panel .stages-heading {margin:22px 0 12px; color:#91ddcf}
+.stage-grid {display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px}
+.stage-tile {margin:0; min-width:0; padding:7px; background:#fff; border-radius:8px; border:1px solid #35516c}
+.stage-tile figcaption {font-size:10px; font-weight:700; color:#35475d; margin-bottom:6px}
+.stage-tile img,.stage-tile canvas {display:block; width:100%; height:108px; object-fit:contain; background:#fff; border-radius:3px}
+.preview-loading {font-size:12px; color:#a0decf; margin:15px 0}
+@media (max-width: 1200px) and (min-width: 801px) {.stage-tile img,.stage-tile canvas {height:90px}}
+@media (max-width: 400px) {.stage-grid {gap:6px}.stage-tile img,.stage-tile canvas {height:93px}}
