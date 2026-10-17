@@ -17,7 +17,8 @@ describe('binary contour extraction',()=>{
   it('rejects blank images',()=>expect(traceContours(image(10,10,[]),10,10,opt)).toEqual([]));
   it('composites alpha and supports inversion',()=>{
     const data=image(12,12,[{x:2,y:2,w:6,h:6}]);
-    expect(traceContours(data,12,12,{...opt,invert:true})).toHaveLength(1);
+    // Inverting a dark island leaves a light frame with an inner hole: two boundary loops.
+    expect(traceContours(data,12,12,{...opt,invert:true})).toHaveLength(2);
     data.fill(0);
     expect(traceContours(data,12,12,opt)).toHaveLength(0);
   });
