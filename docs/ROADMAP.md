@@ -21,3 +21,6 @@ Multi-contour sequencing and pen-up events, accurate frequency sign and phase no
 
 ## Definition of done
 Each PR includes unit checks, relevant UI validation, change description and known limitations. Main remains stable and deployable.
+
+## Phase 2 / 3 combined beta
+Implemented under feat/phase-02-fft-image-import: FFT and thresholded raster contours in a Worker with adjustable threshold/invert/max path count. This accelerates first usable photo upload. Dedicated image enhancement and advanced edge/centerline tracing, robustness and video/export remain future work.
