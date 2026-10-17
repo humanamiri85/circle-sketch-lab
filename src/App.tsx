@@ -73,6 +73,55 @@ export default function App() {
     return () => cancelAnimationFrame(raf);
   }, [playing, speed, drawMode, processing, strokes.length]);
 
+
+  useEffect(() => () => { if (imagePreview) URL.revokeObjectURL(imagePreview); }, [imagePreview]);
+
+  useEffect(() => {
+    const image=raster.current;
+    if(!image)return;
+    const worker=new Worker(new URL('./workers/imageWorker.ts',import.meta.url),{type:'module'});
+    const id=++requestId.current;
+    setProcessing(true);
+    const timeout=window.setTimeout(()=>{
+      const rgba=image.data.slice();
+      worker.postMessage({id,rgba:rgba.buffer,width:image.width,height:image.height,options:traceOptions},[rgba.buffer]);
+    },120);
+    worker.onmessage=(event:MessageEvent<{id:number;strokes?:Stroke[];error?:string}>)=>{
+      if(event.data.id!==requestId.current)return;
+      setProcessing(false);
+      if(event.data.error){setFeedback(event.data.error);return;}
+      const result=event.data.strokes||[];
+      setStrokes(result);setSelectedExample('image');setPhase(0);
+      setFeedback(result.length ? 'Extracted '+result.length+' independent image contours from '+imageName+'.'
+        : 'No contours found. Adjust threshold, invert the colors, or use a higher-contrast image.');
+    };
+    worker.onerror=()=>{
+      if(id===requestId.current){setProcessing(false);setFeedback('Image tracing failed. Try a smaller image.');}
+    };
+    return ()=>{window.clearTimeout(timeout);worker.terminate();};
+  },[imageVersion,traceOptions,imageName]);
+
+  const onImage=async(event:ChangeEvent<HTMLInputElement>)=>{
+    const file=event.target.files?.[0];event.target.value='';if(!file)return;
+    if(!['image/png','image/jpeg','image/webp'].includes(file.type)){
+      setFeedback('Choose PNG, JPG or WebP.');return;
+    }
+    if(file.size>10*1024*1024){setFeedback('Maximum image size is 10 MB.');return;}
+    const id=++requestId.current;
+    setPlaying(false);setDrawMode(false);setProcessing(true);
+    setFeedback('Decoding image locally…');
+    try{
+      const image=await resizeImage(file);
+      if(id!==requestId.current)return;
+      raster.current=image;setImageName(file.name);
+      setImagePreview(URL.createObjectURL(file));setSelectedExample('image');
+      setImageVersion(v=>v+1);
+    }catch(error){
+      if(id===requestId.current){setProcessing(false);
+        setFeedback(error instanceof Error ? error.message : 'Could not open image.');}
+    }
+  };
+
   const choose = (name: ExampleName) => {
     requestId.current++; raster.current = null; setImageVersion(v => v+1); setProcessing(false);
     setStrokes([exampleStroke(name)]);
@@ -146,6 +195,21 @@ export default function App() {
         <aside className="panel input-panel">
           <div className="panel-title"><span className="section-number">01</span><h2>Source image & paths</h2></div>
           <p className="panel-subtitle">Upload a photo, choose an example or draw your own.</p>
+          <h3>UPLOAD YOUR IMAGE</h3>
+          <input className="visually-hidden" ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" onChange={onImage} aria-label="Select image for Fourier tracing" />
+          <button className="action-button" disabled={processing} onClick={() => fileInput.current?.click()}>{processing ? '◌ Extracting contours…' : '↑ Upload photo'}</button>
+          <p className="source-help">PNG / JPG / WebP · up to 10 MB. Works best on high-contrast images.</p>
+          {imagePreview && <>
+            <div className="image-preview"><img src={imagePreview} alt="Your uploaded image" /><span title={imageName}>{imageName}</span></div>
+            <div className="trace-controls">
+              <div className="setting-head"><label htmlFor="threshold">Threshold</label><output>{traceOptions.threshold}</output></div>
+              <input id="threshold" type="range" min="1" max="254" value={traceOptions.threshold} onChange={e => setTraceOptions(t=>({...t,threshold:Number(e.target.value)}))} />
+              <div className="setting-head"><label htmlFor="max-paths">Maximum contours</label><output>{traceOptions.maxPaths}</output></div>
+              <input id="max-paths" type="range" min="1" max="12" value={traceOptions.maxPaths} onChange={e=>setTraceOptions(t=>({...t,maxPaths:Number(e.target.value)}))} />
+              <label className="check-row"><input type="checkbox" checked={traceOptions.invert} onChange={e=>setTraceOptions(t=>({...t,invert:e.target.checked}))} /> Trace light areas instead</label>
+            </div>
+          </>}
+          <div className="panel-rule" />
           <h3>EXAMPLES</h3>
           <div className="example-grid">
             {(['circle', 'square', 'flower'] as ExampleName[]).map(name => <button
@@ -170,6 +234,7 @@ export default function App() {
               onPointerCancel={() => { drawingNow.current = false; draft.current = []; redrawDraft(); }}
               aria-label={drawMode ? 'Draw your path here' : 'Fourier approximation of ' + selectedExample} />
             {drawMode && <div className="canvas-hint">Drag your finger, mouse or stylus to draw</div>}
+            {processing && <div className="canvas-hint">Extracting image contours…</div>}
             <div className="canvas-legend"><span><i className="legend-trace" /> Reconstructed</span><span><i className="legend-source" /> Original path</span></div>
           </div>
           <div className="transport">
